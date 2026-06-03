@@ -1,4 +1,7 @@
 import pandas as pd
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler as RFMScaler
+import datetime
 import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import Pipeline
@@ -105,3 +108,48 @@ def run_processing(input_path, output_path):
 
 if __name__ == '__main__':
     run_processing('data/raw/data.csv', 'data/processed/processed_data.csv')
+
+def build_rfm_and_label(input_path, output_path):
+    df = pd.read_csv(input_path)
+    df['TransactionStartTime'] = pd.to_datetime(df['TransactionStartTime'])
+
+    # ── Step 1: Calculate RFM ───────────────────────────────────────
+    snapshot_date = df['TransactionStartTime'].max() + datetime.timedelta(days=1)
+
+    rfm = df.groupby('CustomerId').agg(
+        Recency=('TransactionStartTime', lambda x: (snapshot_date - x.max()).days),
+        Frequency=('TransactionId', 'count'),
+        Monetary=('Amount', 'sum')
+    ).reset_index()
+
+    # ── Step 2: Scale RFM ───────────────────────────────────────────
+    scaler = RFMScaler()
+    rfm_scaled = scaler.fit_transform(rfm[['Recency', 'Frequency', 'Monetary']])
+
+    # ── Step 3: K-Means Clustering ──────────────────────────────────
+    kmeans = KMeans(n_clusters=3, random_state=42, n_init=10)
+    rfm['Cluster'] = kmeans.fit_predict(rfm_scaled)
+
+    # ── Step 4: Identify High-Risk Cluster ─────────────────────────
+    cluster_summary = rfm.groupby('Cluster')[['Recency', 'Frequency', 'Monetary']].mean()
+    print("Cluster Summary:\n", cluster_summary)
+
+    # High-risk = lowest frequency and lowest monetary value
+    cluster_summary['score'] = cluster_summary['Frequency'] + cluster_summary['Monetary']
+    high_risk_cluster = cluster_summary['score'].idxmin()
+    print(f"High-risk cluster identified: {high_risk_cluster}")
+
+    # ── Step 5: Assign Label ────────────────────────────────────────
+    rfm['is_high_risk'] = (rfm['Cluster'] == high_risk_cluster).astype(int)
+
+    # ── Step 6: Merge back into processed data ──────────────────────
+    processed = pd.read_csv(output_path)
+    processed = processed.merge(rfm[['CustomerId', 'is_high_risk']], on='CustomerId', how='left')
+    processed.to_csv(output_path, index=False)
+    print(f"is_high_risk column added. Saved to {output_path}")
+    return processed
+
+
+if __name__ == '__main__':
+    run_processing('data/raw/data.csv', 'data/processed/processed_data.csv')
+    build_rfm_and_label('data/raw/data.csv', 'data/processed/processed_data.csv')
