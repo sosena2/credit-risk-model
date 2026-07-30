@@ -1,8 +1,5 @@
 import pandas as pd
-from sklearn.cluster import KMeans
-from sklearn.preprocessing import StandardScaler as RFMScaler
 import datetime
-import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
@@ -108,6 +105,7 @@ def run_processing(input_path, output_path):
 
 if __name__ == '__main__':
     run_processing('data/raw/data.csv', 'data/processed/processed_data.csv')
+
 
 def build_rfm_and_label(input_path, output_path):
     df = pd.read_csv(input_path)

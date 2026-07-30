@@ -1,9 +1,9 @@
 from __future__ import annotations
 import pandas as pd
-import numpy as np
 from typing import Tuple
 from sklearn.cluster import KMeans
 from .config import ModelConfig
+
 
 def compute_rfm(
     df: pd.DataFrame,
@@ -32,6 +32,7 @@ def compute_rfm(
     )
     return grouped.reset_index()
 
+
 def assign_proxy_target(
     rfm_df: pd.DataFrame,
     config: ModelConfig,
@@ -59,6 +60,7 @@ def assign_proxy_target(
     rfm_df[config.target_column] = (rfm_df["cluster"] == high_risk_cluster).astype(int)
 
     return rfm_df.drop(columns=["cluster"])
+
 
 def train_test_split_features(
     df: pd.DataFrame,

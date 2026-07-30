@@ -1,5 +1,4 @@
 import mlflow.sklearn
-import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException
 from src.api.pydantic_models import PredictRequest, PredictResponse

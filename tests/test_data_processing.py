@@ -1,12 +1,10 @@
-import pytest
-import pandas as pd
-import numpy as np
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from src.data_processing import AggregateFeatures, TemporalFeatures
+import pandas as pd  # noqa: E402
+from src.data_processing import AggregateFeatures, TemporalFeatures  # noqa: E402
 
 
 def make_sample_df():

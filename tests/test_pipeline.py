@@ -2,9 +2,9 @@
 import pandas as pd
 import numpy as np
 import pytest
-from datetime import datetime
 from src.config import ModelConfig
 from src.utils import compute_rfm, assign_proxy_target, train_test_split_features
+
 
 @pytest.fixture
 def sample_transactions() -> pd.DataFrame:
@@ -16,11 +16,13 @@ def sample_transactions() -> pd.DataFrame:
         "amount": [100, 200, 50, 60, 500],
     })
 
+
 @pytest.fixture
 def config() -> ModelConfig:
     return ModelConfig()
 
 # --- Unit tests ---
+
 
 def test_compute_rfm_shape(sample_transactions):
     """RFM output should have one row per unique customer."""
@@ -30,6 +32,7 @@ def test_compute_rfm_shape(sample_transactions):
     )
     assert len(result) == sample_transactions["customer_id"].nunique()
 
+
 def test_compute_rfm_columns(sample_transactions):
     """RFM output must contain recency, frequency, monetary columns."""
     result = compute_rfm(
@@ -37,6 +40,7 @@ def test_compute_rfm_columns(sample_transactions):
         snapshot_date=pd.Timestamp("2026-02-01"),
     )
     assert {"recency", "frequency", "monetary"}.issubset(result.columns)
+
 
 def test_compute_rfm_frequency_correct(sample_transactions):
     """Customer 1 has 2 transactions, frequency should equal 2."""
@@ -47,6 +51,7 @@ def test_compute_rfm_frequency_correct(sample_transactions):
     freq_customer_1 = result.loc[result["customer_id"] == 1, "frequency"].iloc[0]
     assert freq_customer_1 == 2
 
+
 def test_assign_proxy_target_binary(sample_transactions, config):
     """Proxy target column must be binary (0/1)."""
     rfm = compute_rfm(
@@ -55,6 +60,7 @@ def test_assign_proxy_target_binary(sample_transactions, config):
     )
     labeled = assign_proxy_target(rfm, config)
     assert set(labeled[config.target_column].unique()).issubset({0, 1})
+
 
 def test_assign_proxy_target_no_nulls(sample_transactions, config):
     """Proxy target should never contain nulls."""
@@ -66,6 +72,7 @@ def test_assign_proxy_target_no_nulls(sample_transactions, config):
     assert labeled[config.target_column].isnull().sum() == 0
 
 # --- Integration test ---
+
 
 def test_end_to_end_split_produces_expected_partitions(config):
     """Full mini-pipeline: raw df -> feature/target split with correct proportions."""
