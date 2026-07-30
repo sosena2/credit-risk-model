@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from typing import List
 
+
 @dataclass(frozen=True)
 class ModelConfig:
     """Central configuration for the credit risk pipeline."""
@@ -19,12 +20,14 @@ class ModelConfig:
     ])
     model_registry_name: str = "bati-bank-credit-risk"
 
+
 @dataclass(frozen=True)
 class APIConfig:
     """Configuration for the FastAPI serving layer."""
     host: str = "0.0.0.0"
     port: int = 8000
     model_stage: str = "Production"
+
 
 # Named constants replacing magic numbers previously scattered in the pipeline
 DEFAULT_THRESHOLD: float = 0.5

@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from typing import Any
 
+
 def generate_global_shap_summary(model: Any, X: pd.DataFrame, save_path: str) -> None:
     """Produce and save a global SHAP summary (beeswarm) plot."""
     explainer = shap.Explainer(model)
@@ -12,6 +13,7 @@ def generate_global_shap_summary(model: Any, X: pd.DataFrame, save_path: str) ->
     plt.savefig(save_path, dpi=150)
     plt.close()
 
+
 def generate_local_shap_explanation(model: Any, instance: pd.DataFrame, save_path: str) -> None:
     """Produce and save a single-prediction SHAP waterfall plot."""
     explainer = shap.Explainer(model)
@@ -20,6 +22,7 @@ def generate_local_shap_explanation(model: Any, instance: pd.DataFrame, save_pat
     plt.tight_layout()
     plt.savefig(save_path, dpi=150)
     plt.close()
+
 
 def check_concerning_patterns(model: Any, X: pd.DataFrame) -> pd.DataFrame:
     """
