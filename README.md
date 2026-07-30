@@ -34,6 +34,7 @@ streamlit run dashboard/app.py
 ```
 
 ## Project Structure
+```
 ├── src/
 │ ├── data_processing.py # feature engineering + proxy risk label
 │ ├── train.py # model training, MLflow tracking
@@ -53,6 +54,7 @@ streamlit run dashboard/app.py
 ├── Dockerfile
 ├── docker-compose.yml
 └── requirements.txt
+```
 
 
 ## Demo
