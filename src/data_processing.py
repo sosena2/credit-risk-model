@@ -113,7 +113,6 @@ def build_rfm_and_label(input_path, output_path):
     df = pd.read_csv(input_path)
     df['TransactionStartTime'] = pd.to_datetime(df['TransactionStartTime'])
 
-    # ── Step 1: Calculate RFM ───────────────────────────────────────
     snapshot_date = df['TransactionStartTime'].max() + datetime.timedelta(days=1)
 
     rfm = df.groupby('CustomerId').agg(
@@ -122,27 +121,23 @@ def build_rfm_and_label(input_path, output_path):
         Monetary=('Amount', 'sum')
     ).reset_index()
 
-    # ── Step 2: Scale RFM ───────────────────────────────────────────
-    scaler = RFMScaler()
-    rfm_scaled = scaler.fit_transform(rfm[['Recency', 'Frequency', 'Monetary']])
+    # Composite risk score: high recency (inactive) + low frequency + low monetary = risky.
+    # Rank-based (percentile) scoring is robust to outliers, unlike raw KMeans distances.
+    rfm['recency_rank'] = rfm['Recency'].rank(pct=True)
+    rfm['frequency_rank'] = rfm['Frequency'].rank(pct=True, ascending=False)
+    rfm['monetary_rank'] = rfm['Monetary'].rank(pct=True, ascending=False)
 
-    # ── Step 3: K-Means Clustering ──────────────────────────────────
-    kmeans = KMeans(n_clusters=3, random_state=42, n_init=10)
-    rfm['Cluster'] = kmeans.fit_predict(rfm_scaled)
+    rfm['risk_score'] = (
+        rfm['recency_rank'] + rfm['frequency_rank'] + rfm['monetary_rank']
+    ) / 3
 
-    # ── Step 4: Identify High-Risk Cluster ─────────────────────────
-    cluster_summary = rfm.groupby('Cluster')[['Recency', 'Frequency', 'Monetary']].mean()
-    print("Cluster Summary:\n", cluster_summary)
+    # Bottom-engagement quartile (highest risk_score) = high risk.
+    # This guarantees ~25% of customers are labeled high risk, regardless of outliers.
+    threshold = rfm['risk_score'].quantile(0.75)
+    rfm['is_high_risk'] = (rfm['risk_score'] >= threshold).astype(int)
 
-    # High-risk = lowest frequency and lowest monetary value
-    cluster_summary['score'] = cluster_summary['Frequency'] + cluster_summary['Monetary']
-    high_risk_cluster = cluster_summary['score'].idxmin()
-    print(f"High-risk cluster identified: {high_risk_cluster}")
+    print("High-risk customer count:", rfm['is_high_risk'].sum(), "out of", len(rfm))
 
-    # ── Step 5: Assign Label ────────────────────────────────────────
-    rfm['is_high_risk'] = (rfm['Cluster'] == high_risk_cluster).astype(int)
-
-    # ── Step 6: Merge back into processed data ──────────────────────
     processed = pd.read_csv(output_path)
     processed = processed.merge(rfm[['CustomerId', 'is_high_risk']], on='CustomerId', how='left')
     processed.to_csv(output_path, index=False)
