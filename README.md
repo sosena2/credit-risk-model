@@ -1,111 +1,107 @@
-# Credit Risk Probability Model for Alternative Data
+# Bati Bank Credit Risk Model
 
-An end-to-end implementation for building, deploying, and automating a credit risk model for Bati Bank's buy-now-pay-later service.
+![CI](https://github.com/sosena2/credit-risk-model/actions/workflows/ci.yml/badge.svg)
 
----
+A machine learning system that scores customer creditworthiness using alternative transactional data, enabling Bati Bank to safely extend buy-now-pay-later credit to customers without traditional credit histories.
+
+## Business Problem
+
+Bati Bank wants to offer a "buy now, pay later" service through an eCommerce partner, but has no traditional credit bureau data on most applicants. Without a reliable risk model, the bank faces a choice between over-cautious rejection (lost revenue) and under-informed approval (default losses).
+
+## Solution Overview
+
+Using RFM (Recency, Frequency, Monetary) analysis on transaction histories, we construct a proxy default-risk label via a percentile-rank composite score (the bottom-engagement quartile of customers is labeled high risk). Three classifiers — Logistic Regression, Random Forest, and Gradient Boosting — are trained and compared with hyperparameter search, tracked via MLflow. The best model is served through an interactive Streamlit dashboard with SHAP-based explanations for every prediction.
+
+## Key Results
+
+| Metric | Logistic Regression | Random Forest | Gradient Boosting (Champion) |
+|---|---|---|---|
+| Accuracy | 0.734 | 0.688 | 0.726 |
+| Precision | 0.049 | 0.054 | 0.059 |
+| Recall | 0.594 | 0.782 | 0.757 |
+| F1 Score | 0.090 | 0.100 | 0.109 |
+| ROC-AUC | 0.767 | 0.809 | **0.839** |
+
+- **Data leakage identified and corrected:** an earlier version of this pipeline leaked target-construction features (transaction count, total amount) back into the model inputs, producing an artificial 1.0 AUC. The corrected pipeline excludes these and evaluates on a genuinely unseen, customer-stratified split.
+- **Class imbalance handled explicitly:** balanced class weights (Logistic Regression, Random Forest) and sample weighting (Gradient Boosting), since only ~2% of customers fall into the high-risk proxy class. This trades precision for recall — the model catches most genuinely high-risk customers at the cost of some false positives.
+- **Full prediction explainability** via SHAP for every applicant, not just aggregate feature importance.
+
+## Demo
+
+![Dashboard with SHAP explanation](docs/images/dashboard.png)
+
+*Loan officers can score an applicant and immediately see which features drove the prediction.*
+
+## Quick Start
+
+```bash
+git clone https://github.com/sosena2/credit-risk-model
+cd credit-risk-model
+python -m venv venv
+source venv/bin/activate   # or venv\Scripts\activate on Windows
+pip install -r requirements.txt
+
+python -m src.data_processing
+python -m src.train
+pytest tests/ -v
+streamlit run dashboard/app.py
+```
 
 ## Project Structure
-credit-risk-model/
-├── .github/workflows/ci.yml
+
+```
+├── src/
+│   ├── data_processing.py    # feature engineering + proxy risk label
+│   ├── train.py                # model training, MLflow tracking
+│   ├── predict.py
+│   ├── explain.py              # SHAP explainability
+│   ├── config.py
+│   └── api/
+│       ├── main.py             # FastAPI serving endpoint
+│       └── pydantic_models.py  # request/response schemas
+├── dashboard/
+│   └── app.py                  # Streamlit risk-scoring interface
+├── tests/
+│   ├── test_pipeline.py
+│   └── test_data_processing.py
+├── notebooks/
+│   └── eda.ipynb
 ├── data/
 │   ├── raw/
 │   └── processed/
-├── notebooks/
-│   └── eda.ipynb
-├── src/
-│   ├── init.py
-│   ├── data_processing.py
-│   ├── train.py
-│   ├── predict.py
-│   └── api/
-│       ├── main.py
-│       └── pydantic_models.py
-├── tests/
-│   └── test_data_processing.py
+├── .github/workflows/ci.yml
 ├── Dockerfile
 ├── docker-compose.yml
-├── requirements.txt
-├── .gitignore
-└── README.md
----
-
-## Credit Scoring Business Understanding
-
-### 1. How does the Basel II Accord's emphasis on risk measurement influence the need for an interpretable and well-documented model?
-
-The Basel II Capital Accord requires financial institutions to rigorously measure, justify, and document the risk models they use for credit decisions. Under Basel II, banks must demonstrate to regulators that their models are not black boxes — every input variable must be justified, every modeling assumption must be documented, and the model's outputs must be explainable to both internal risk teams and external auditors.
-
-This regulatory expectation directly shapes how a credit scoring model must be built. A model that achieves high predictive accuracy but cannot explain why a customer was labeled high-risk is non-compliant. For example, if a gradient boosting model denies credit to an applicant, the bank must be able to articulate which factors drove that decision and why those factors are legitimate risk indicators — not proxies for protected characteristics like race or gender.
-
-In practice, this means the model must:
-- Use variables with documented business justification
-- Be validated on out-of-sample data with tracked performance metrics
-- Be monitored over time for model drift
-- Produce outputs that a credit officer can interpret and override if needed
-
-This is why interpretable models like Logistic Regression with Weight of Evidence (WoE) transformations remain the industry standard in regulated credit scoring, even when more complex models offer better raw performance. The documentation and interpretability requirements of Basel II are not optional — they are a legal and operational constraint.
-
----
-
-### 2. Without a direct "default" label, why is a proxy variable necessary, and what business risks does proxy-based prediction introduce?
-
-The raw transaction dataset from the eCommerce platform contains no explicit label indicating whether a customer has defaulted on a loan. This is common when working with alternative data sources — the data was not originally collected for credit risk purposes, so there is no loan repayment history, no missed payment record, and no formal default event to learn from.
-
-Without a target variable, supervised machine learning cannot be applied directly. A proxy variable is therefore constructed to approximate the concept of credit risk using observable behavioral signals. In this project, Recency, Frequency, and Monetary (RFM) metrics are used to segment customers. Customers who are disengaged — meaning they transact rarely, have not transacted recently, and spend little — are labeled as high-risk (is_high_risk = 1), on the assumption that low engagement correlates with financial instability or inability to repay.
-
-However, using a proxy variable instead of a true default label introduces several business risks:
-
-- **Label noise:** The proxy may incorrectly label customers. A customer who is low-frequency may simply be a selective buyer, not a credit risk. This means the model learns from imperfect signal, which degrades its real-world reliability.
-- **Concept mismatch:** Behavioral disengagement on an eCommerce platform is not the same as loan default. The assumption that one predicts the other is a modeling choice, not an empirical fact, and it may not hold across different customer segments or economic conditions.
-- **Regulatory scrutiny:** Under Basel II, institutions must justify their target variable. A proxy variable must be clearly documented as an approximation, and the bank must acknowledge its limitations in any model risk documentation submitted to regulators.
-- **Feedback loops:** If the model trained on the proxy denies credit to customers who would have actually repaid, the bank loses revenue and the model never gets corrected because no repayment data is generated for those customers.
-
-These risks do not make the proxy approach invalid — it is a reasonable and industry-accepted method when true labels are unavailable. But they must be explicitly acknowledged, and the model should be updated as real loan repayment data becomes available over time.
-
----
-
-### 3. What are the key trade-offs between a simple, interpretable model (e.g., Logistic Regression with WoE) and a high-performance model (e.g., Gradient Boosting) in a regulated financial context?
-
-In credit risk modeling, the choice between an interpretable model and a high-performance model is not purely a technical decision — it is a business, legal, and ethical one.
-
-**Logistic Regression with Weight of Evidence (WoE)** is the traditional approach in credit scoring and remains widely used in regulated institutions for the following reasons:
-- Every coefficient in the model has a direct, interpretable meaning. A loan officer can understand why a score changed.
-- WoE transformations handle non-linear relationships and missing values gracefully while maintaining a linear model structure.
-- The model produces a scorecard that is auditable, stable, and easy to validate against regulatory expectations.
-- It is straightforward to monitor for drift and to explain to regulators, internal risk committees, and in adverse action notices sent to applicants who are denied credit.
-
-The main limitation is that Logistic Regression with WoE may underperform on complex, non-linear patterns in the data, which can mean leaving predictive accuracy on the table.
-
-**Gradient Boosting models** (XGBoost, LightGBM) offer the following advantages:
-- They capture complex, non-linear interactions between features automatically.
-- They typically outperform linear models on raw predictive metrics such as ROC-AUC and F1 score.
-- They handle imbalanced datasets and noisy features more robustly.
-
-However, in a regulated financial context, these advantages come with significant trade-offs:
-- The model is not inherently interpretable. Feature importance scores provide some insight, but they do not explain individual predictions in the way a scorecard does.
-- Tools like SHAP values can approximate explanations, but regulators may not accept post-hoc explanation tools as a substitute for inherent interpretability.
-- Gradient boosting models are harder to validate, harder to monitor, and harder to justify in model risk documentation submitted under Basel II.
-- If the model is challenged legally — for example, on grounds of discriminatory lending — the bank must be able to fully explain every decision, which is difficult with an ensemble of hundreds of trees.
-
-**In summary:** In a regulated financial context, interpretability is not just a nice-to-have — it is often a regulatory requirement. The preferred approach is to use an interpretable model as the primary production model and use a high-performance model as a benchmark or challenger model. If a gradient boosting model significantly outperforms the logistic regression, that gap must be weighed against the compliance cost and risk of deploying a less explainable system. For this project, both model types will be trained and compared, with the final deployment decision justified against these trade-offs.
-
----
-
-## Setup Instructions
-
-```bash
-git clone https://github.com/YOUR_USERNAME/credit-risk-model.git
-cd credit-risk-model
-pip install -r requirements.txt
+└── requirements.txt
 ```
 
----
+## Model Tracking
 
-## Data
+All experiments are tracked in MLflow, including hyperparameters, metrics, and the registered champion model.
 
-Download the dataset from [Kaggle — Xente Challenge](https://www.kaggle.com/competitions/xente-fraud-detection-competition/data) and place it in `data/raw/`.
+![MLflow training runs](docs/images/mlflow_runs.png)
 
-Data is excluded from version control via `.gitignore`.
+## Testing
 
----
+A 10-test suite covers feature engineering and proxy label construction, gated in CI on every push.
 
+![pytest passing](docs/images/tests.png)
+
+## Technical Details
+
+- **Data:** Xente eCommerce transaction data; RFM features engineered per customer
+- **Proxy target:** Since real default labels don't exist, `is_high_risk` is constructed from a percentile-rank composite of recency, frequency, and monetary value — the bottom-engagement quartile is labeled high risk
+- **Model:** Best of {Logistic Regression, Random Forest, Gradient Boosting}, selected by ROC-AUC among models with non-zero F1, tracked via MLflow
+- **Evaluation:** ROC-AUC, precision/recall/F1 on a held-out, customer-stratified test set (no customer's transactions appear in both train and test)
+- **Explainability:** SHAP waterfall plots per prediction, surfaced live in the dashboard
+
+## Future Improvements
+
+- Replace the proxy label with real default outcomes once available
+- Tune the decision threshold explicitly for business cost trade-offs rather than the default 0.5
+- Add model monitoring for drift as new transaction patterns emerge
+- A/B test the credit policy threshold against real approval outcomes
+
+## Author
+
+Sosina — [GitHub: sosena2](https://github.com/sosena2) — [LinkedIn] — [Email]
