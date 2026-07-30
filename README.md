@@ -104,4 +104,4 @@ A 10-test suite covers feature engineering and proxy label construction, gated i
 
 ## Author
 
-Sosina — [GitHub: sosena2](https://github.com/sosena2) — [LinkedIn] — [Email]
+Sosina — [GitHub: sosena2](https://github.com/sosena2)
